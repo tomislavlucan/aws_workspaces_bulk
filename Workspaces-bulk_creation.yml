@@ -76,7 +76,7 @@ def lambda_handler(event, context):
                 'VolumeEncryptionKey': user['KMSKey'],
                 'UserVolumeEncryptionEnabled': True, # Adjust as needed
                 'WorkspaceProperties': {
-                    'RunningMode': 'AUTO_STOP',
+                    'RunningMode': 'ALWAYS_ON',
                     'RunningModeAutoStopTimeoutInMinutes': 60,
                     'RootVolumeSizeGib': int(user['RootVolumeSize']),  # Add Root volume size
                     'UserVolumeSizeGib': int(user['UserVolumeSize'])   # Add User volume size
