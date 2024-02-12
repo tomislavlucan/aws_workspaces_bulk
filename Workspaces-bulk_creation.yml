@@ -49,33 +49,50 @@ Resources:
     Properties:
       Code:
         ZipFile: | 
-          import boto3
-          import csv
+      import boto3
+      import csv
 
-          def lambda_handler(event, context):
-                s3 = boto3.client('s3')
-                workspaces = boto3.client('workspaces')
+def lambda_handler(event, context):
+    s3 = boto3.client('s3')
+    workspaces = boto3.client('workspaces')
 
-                bucket_name = 'workspaces-bulk'
-                key = 'bulkprovision/users_ire.csv'
+    bucket_name = event['Records'][0]['s3']['bucket']['name']
+    key = event['Records'][0]['s3']['object']['key']
 
-                # Get CSV data from S3
-                csv_obj = s3.get_object(Bucket=bucket_name, Key=key)
-                body = csv_obj['Body'].read().decode('utf-8')
-                users = csv.DictReader(body.splitlines())
+    # Get CSV data from S3
+    csv_obj = s3.get_object(Bucket=bucket_name, Key=key)
+    body = csv_obj['Body'].read().decode('utf-8')
+    users = csv.DictReader(body.splitlines())
 
-                # Process and create workspaces
-                for user in users:
-                    workspaces.create_workspaces(
-                        Workspaces=[{
-                            'DirectoryId': user['DirectoryId'],
-                            'UserName': user['UserName'],
-                            'BundleId': user['BundleId'],
-                            'RootVolumeEncryptionEnabled': True,  # Adjust as needed
-                            'UserVolumeEncryptionEnabled': True, # Adjust as needed
-                            'VolumeEncryptionKey': user['KMSKey']
-                        }]
-                    )
+    # Process and create workspaces
+    for user in users:
+        workspaces.create_workspaces(
+            Workspaces=[{
+                'DirectoryId': user['DirectoryId'],
+                'UserName': user['UserName'],
+                'BundleId': user['BundleId'],
+                'RootVolumeEncryptionEnabled': True,  # Adjust as needed
+                'UserVolumeEncryptionEnabled': True, # Adjust as needed
+                'VolumeEncryptionKey': user['KMSKey'],
+                'UserVolumeEncryptionEnabled': True, # Adjust as needed
+                'WorkspaceProperties': {
+                    'RunningMode': 'AUTO_STOP',
+                    'RunningModeAutoStopTimeoutInMinutes': 60,
+                    'RootVolumeSizeGib': int(user['RootVolumeSize']),  # Add Root volume size
+                    'UserVolumeSizeGib': int(user['UserVolumeSize'])   # Add User volume size
+                },
+                'Tags': [
+                    {'Key': 'Protocol', 'Value': user['Protocol']},      # Add Protocol field value
+                    {'Key': 'ComputeType', 'Value': user['ComputeType']}  # Add ComputeType field value
+                ]
+            }]
+        )
+
+    return {
+        'statusCode': 200,
+        'body': 'WorkSpaces creation process completed.'
+    }
+
 
       Handler: index.lambda_handler
       Role: !GetAtt WorkSpacesLambdaRole.Arn
