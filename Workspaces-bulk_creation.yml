@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create WorkSpaces from S3 CSV
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket containing users.csv
+  S3ObjectKey:
+    Type: String
+    Description: The key (path) to the users.csv file
+  KmsKeyArn: 
+    Type: String
+    Description: ARN of the KMS key to use for WorkSpaces encryption
+
+Resources:
+  WorkSpacesLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: WorkSpacesLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - workspaces:CreateWorkspaces
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${S3BucketName}/${S3ObjectKey}" 
+
+  WorkSpacesLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: | 
+          import boto3
+          import csv
+
+          def lambda_handler(event, context):
+                s3 = boto3.client('s3')
+                workspaces = boto3.client('workspaces')
+
+                bucket_name = 'workspaces-bulk'
+                key = 'bulkprovision/users_ire.csv'
+
+                # Get CSV data from S3
+                csv_obj = s3.get_object(Bucket=bucket_name, Key=key)
+                body = csv_obj['Body'].read().decode('utf-8')
+                users = csv.DictReader(body.splitlines())
+
+                # Process and create workspaces
+                for user in users:
+                    workspaces.create_workspaces(
+                        Workspaces=[{
+                            'DirectoryId': user['DirectoryId'],
+                            'UserName': user['UserName'],
+                            'BundleId': user['BundleId'],
+                            'RootVolumeEncryptionEnabled': True,  # Adjust as needed
+                            'UserVolumeEncryptionEnabled': True, # Adjust as needed
+                            'VolumeEncryptionKey': user['KMSKey']
+                        }]
+                    )
+
+      Handler: index.lambda_handler
+      Role: !GetAtt WorkSpacesLambdaRole.Arn
+      Runtime: python3.9
+      Timeout: 300 
+
+  S3EventTrigger:
+    Type: AWS::Events::Rule 
+    Properties:
+      Name: !Sub "workspaces-bulk-S3EventTrigger-${AWS::StackName}"
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - ObjectCreated
+          - ObjectCreatedPut
+        detail:
+          bucket:
+            name: 
+              - !Ref S3BucketName
+          object:
+            key:
+              - !Sub "${S3ObjectKey}/*"
+      Targets:
+        - Arn: !GetAtt WorkSpacesLambdaFunction.Arn
+          Id: "TargetFunction"
+
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt WorkSpacesLambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/S3EventTrigger" 
