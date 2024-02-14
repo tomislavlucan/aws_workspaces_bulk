@@ -1,4 +1,4 @@
 DirectoryId,UserName,BundleId,KMSKey,Protocol,ComputeType,RootVolumeSize,UserVolumeSize
 
-d-YourDirectoryId,scwpuser001,wsb-8vbljg4r6,arn:aws:kms:us-east-1:youraccount:key/9c631fc8-6b-YOUR-KEY-84a06dfd3
-d-YourDirectoryId,scwpuser002,wsb-8vbljg4r6,arn:aws:kms:us-east-1:youraccount:key/9c631fc8-6b-YOUR-KEY-84a06dfd3
+d-YourDirectoryId,scwpuser001,wsb-8vbljg4r6,arn:aws:kms:us-east-1:youraccount:key/9c631fc8-6b-YOUR-KEY-84a06dfd3,WSP,POWER,80,50
+d-YourDirectoryId,scwpuser002,wsb-8vbljg4r6,arn:aws:kms:us-east-1:youraccount:key/9c631fc8-6b-YOUR-KEY-84a06dfd3,PCOIP,PERFORMANCE,80,50
